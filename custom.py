@@ -3,8 +3,6 @@ import uvloop
 import httptools
 import aiopg
 import ujson
-from functools import partial
-
 
 dumps = ujson.dumps
 qu = """
@@ -17,31 +15,33 @@ BEGIN;
 {}
 COMMIT;
 """
+trans = "{}"
 # create unlogged table tbl (ID SERIAL PRIMARY KEY, data Json);
 # ALTER TABLE tbl SET (autovacuum_enabled = false, toast.autovacuum_enabled = false);
+# http://ec2-54-165-48-43.compute-1.amazonaws.com:8880/
+dat = b'1' * 5000
 
 
-
-async def consume():
+async def consume(loop):
     conn = await aiopg.connect(
         database='warehouse',
-        user='enkidulan',
+        port='5433',
+        user='mshalenyi',
         password='secret',
-        host='127.0.0.1')
+        host='127.0.0.1',
+        loop=loop)
     cnt = 0
     qw = []
-    append = qw.append
     fformat = qu.format
-    # async with pool.acquire() as conn:
     while True:
         value = await queue.get()
         # print(value)
         cnt += 1
-        append(fformat(value))
-        if cnt >= 10000:
+        qw.append(fformat(value))
+        if cnt >= 5000:
             async with conn.cursor() as cur:
                 await cur.execute(trans.format("\n".join(qw)))
-            qw[:] = []
+            qw = []
             cnt = 0
 
 
@@ -100,8 +100,9 @@ class HttpProtocol(asyncio.Protocol):
         resp = b''.join([
             'HTTP/1.1 200 OK\r\n'.encode('latin-1'),
             b'Content-Type: text/plain\r\n',
-            'Content-Length: 0\r\n'.encode('latin-1'),
-            b'\r\n'
+            'Content-Length: 5000\r\n'.encode('latin-1'),
+            b'\r\n',
+            dat
         ])
 
         self._transport.write(resp)
@@ -111,12 +112,10 @@ class HttpProtocol(asyncio.Protocol):
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = asyncio.get_event_loop()
 queue = asyncio.Queue(loop=loop)
-loop.create_task(consume())
+loop.create_task(consume(loop=loop))
 
 addr = ('127.0.0.1', 8888)
 app = loop.create_server(lambda: HttpProtocol(loop=loop), *addr)
-
-_app = lambda: app
 
 if __name__ == '__main__':
     server = loop.run_until_complete(app)
