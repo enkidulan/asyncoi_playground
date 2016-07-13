@@ -74,36 +74,6 @@ async def get_responce(loop):
             transport.close()
 
 
-async def get(proto):
-    loop = proto._loop
-    global register
-    conn = register.get('conn')
-    if conn is None:
-        conn = await aiopg.connect(
-            database='warehouse',
-            port='5433',
-            user='mshalenyi',
-            password='secret',
-            host='127.0.0.1',
-            loop=loop)
-        register['conn'] = conn
-    async with conn.cursor() as cur:
-        await cur.execute("SELECT uuid_generate_v4 from t_random where uuid_generate_v4='888f1a6d-2aab-4a06-ae46-b227cf6d85db'")
-        rez = await cur.fetchone()
-        dat = bytes(rez[0].hex, 'utf-8') or b'hello'
-    resp = b''.join([
-        'HTTP/1.1 200 OK\r\n'.encode('latin-1'),
-        b'Content-Type: text/plain\r\n',
-        'Content-Length: {0}\r\n'.format(len(dat)).encode('latin-1'),
-        b'\r\n',
-        dat
-    ])
-
-    proto._transport.write(resp)
-    proto._transport.close()
-    proto._transport = None
-
-
 class HttpProtocol(asyncio.Protocol):
     __slots__ = (
         '_loop', '_transport', '_request', '_parser',
@@ -130,54 +100,21 @@ class HttpProtocol(asyncio.Protocol):
             self._url, self._headers,
             self._parser.get_http_version())
 
-        # self._loop.call_soon(handle, self._request)
-        # asyncio.ensure_future(queue.put(dumps(self._request)))
         self._loop.create_task(queue.put(dumps(self._request)))
         self._loop.create_task(get_queue.put((self._request, self._transport)))
 
         self._reset()
 
     def connection_made(self, transport):
-        # peername = transport.get_extra_info('peername')
-        # print('Connection from {}'.format(peername))
         self._transport = transport
 
     def connection_lost(self, exc):
         self._transport = None
 
     def data_received(self, data):
-        # message = data.decode()
-        # print('Data received: {!r}'.format(message))
         self._parser = httptools.HttpRequestParser(self)
         self._parser.feed_data(data)
-        # resp = b''.join([
-        #     'HTTP/1.1 200 OK\r\n'.encode('latin-1'),
-        #     b'Content-Type: text/plain\r\n',
-        #     'Content-Length: {}\r\n'.format(len(data)).encode('latin-1'),
-        #     b'\r\n',
-        #     data
-        # ])
-        # rez1 = self._loop.run_until_complete()
 
-
-        # self._loop.create_task(get(proto=self))
-
-
-        # import pdb; pdb.set_trace()
-        # asyncio.sleep(1)
-        # import pdb; pdb.set_trace()
-        # dat = rez['rez']
-        # resp = b''.join([
-        #     'HTTP/1.1 200 OK\r\n'.encode('latin-1'),
-        #     b'Content-Type: text/plain\r\n',
-        #     'Content-Length: {0}\r\n'.format(len(dat)).encode('latin-1'),
-        #     b'\r\n',
-        #     dat
-        # ])
-
-        # self._transport.write(resp)
-        # self._transport.close()
-        # self._transport = None
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = asyncio.get_event_loop()
@@ -199,11 +136,3 @@ if __name__ == '__main__':
     finally:
         server.close()
         loop.close()
-
-
-# message = 'Hello World!'
-# coro = loop.create_connection(lambda: EchoClientProtocol(message, loop),
-#                               '127.0.0.1', 8888)
-# loop.run_until_complete(coro)
-# loop.run_forever()
-# loop.close()
