@@ -116,18 +116,20 @@ class HttpProtocol(asyncio.Protocol):
         self._parser.feed_data(data)
 
 
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-loop = asyncio.get_event_loop()
-queue = asyncio.Queue(loop=loop)
-get_queue = asyncio.Queue(loop=loop)
+# addr = ('127.0.0.1', 8889)
+# app = loop.create_server(lambda: HttpProtocol(loop=loop), *addr)
+def app():
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    loop = asyncio.get_event_loop()
+    queue = asyncio.Queue(loop=loop)
+    get_queue = asyncio.Queue(loop=loop)
 
-loop.create_task(consume(loop=loop))
+    loop.create_task(consume(loop=loop))
 
-for i in range(4):
-    loop.create_task(get_responce(loop=loop))
+    for i in range(1):
+        loop.create_task(get_responce(loop=loop))
 
-addr = ('127.0.0.1', 8888)
-app = loop.create_server(lambda: HttpProtocol(loop=loop), *addr)
+    return HttpProtocol(loop=loop)
 
 if __name__ == '__main__':
     server = loop.run_until_complete(app)
